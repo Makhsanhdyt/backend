@@ -1,245 +1,232 @@
-/* eslint-disable no-console */
-// server.js
+/* eslint-disable object-curly-newline */
+/* eslint-disable no-undef */
+/* eslint-disable no-shadow */
+// Dependencies
 const express = require('express');
 const bodyParser = require('body-parser');
-const mysql = require('mysql2');
-
-const app = express();
-
-app.use(bodyParser.urlencoded({ extended: false }));
-
-// route
 const { getAllCategories } = require('./src/categories/categoriesHandler');
 
-// Buat koneksi ke database
-const connection = mysql.createConnection({
-  host: '34.128.114.112',
-  user: 'root',
-  password: '123',
-  database: 'buku_db',
-});
+// In-memory data store
+const books = [];
+const users = [];
 
-connection.connect((err) => {
-  if (err) {
-    console.error('Error connecting to database: ', err);
-    return;
-  }
-  console.log('Connected to MySQL database');
-});
+// Express app
+const app = express();
 
-app.get('/books', (req, res) => {
-  connection.query('SELECT * FROM books', (err, results) => {
-    if (err) {
-      res.status(500);
-      res.json({
-        status: false,
-        message: 'Error fetching books',
-        data: [],
-      });
-      return;
-    }
+// Middleware
+app.use(bodyParser.urlencoded({ extended: false }));
 
-    const formattedResults = results.map((book) => {
-      return {
-        id: book.id,
-        title: book.title,
-        author: book.author,
-        year: book.year,
-      };
-    });
-
-    res.status(200);
-    res.json({
-      status: true,
-      message: 'Books fetched successfully',
-      data: formattedResults,
-    });
-  });
-});
-
-app.get("/tabel", (req, res) => {
-  connection.query("SELECT * FROM books", (err, results) => {
-    if (err) {
-      res.send("Error fetching data");
-      return;
-    }
-    let tableHtml =
-      '<table border="1"><tr><th>ID</th><th>ISBN</th><th>Title</th><th>Author</th><th>Year</th><th>Action</th></tr>';
-    results.forEach((book) => {
-      tableHtml += `<tr><td>${book.id}</td><td>${book.ISBN}</td><td>${book.title}</td><td>${book.author}</td><td>${book.year}</td><td><a href="/edit-book/${book.id}">Edit</a> | <a href="/delete-book/${book.id}">Delete</a></td></tr>`;
-    });
-    tableHtml += "</table>";
-    res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Books Table</title>
-        </head>
-        <body>
-          <h1>Books Table</h1>
-          ${tableHtml}
-        </body>
-        </html>
-      `);
-  });
-});
-
-// Menghapus buku dari database berdasarkan ID
-app.delete("/delete-book/:id", (req, res) => {
-  const bookId = req.params.id;
-  connection.query(
-    "DELETE FROM books WHERE id = ?",
-    [bookId],
-    (err, result) => {
-      if (err) {
-        res.json({
-          status: false,
-          message: "Error deleting book",
-          data: {},
-        });
-        return;
-      }
-      res.json({
-        status: true,
-        message: "Book deleted successfully",
-        data: {},
-      });
-    }
-  );
-});
-
-// Menampilkan form untuk mengedit buku berdasarkan ID
-app.get("/edit-book/:id", (req, res) => {
-  const bookId = req.params.id;
-  connection.query(
-    "SELECT * FROM books WHERE id = ?",
-    [bookId],
-    (err, result) => {
-      if (err || result.length === 0) {
-        res.send("Book not found");
-        return;
-      }
-      const book = result[0];
-      res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Edit Book</title>
-      </head>
-      <body>
-        <h1>Edit Book</h1>
-        <form action="/update-book/${book.id}" method="post">
-          <label for="ISBN">ISBN:</label><br>
-          <input type="text" id="ISBN" name="ISBN" value="${book.ISBN}"><br>
-          <label for="title">Title:</label><br>
-          <input type="text" id="title" name="title" value="${book.title}"><br>
-          <label for="author">Author:</label><br>
-          <input type="text" id="author" name="author" value="${book.author}"><br>
-          <label for="year">Year:</label><br>
-          <input type="text" id="year" name="year" value="${book.year}"><br><br>
-          <input type="submit" value="Update Book">
-        </form>
-      </body>
-      </html>
-    `);
-    }
-  );
-});
-
-// Meng-handle pembaruan buku ke database
-app.post("/update-book/:id", (req, res) => {
-  const bookId = req.params.id;
-  const { ISBN, title, author, year } = req.body;
-  connection.query(
-    "UPDATE books SET ISBN = ?, title = ?, author = ?, year = ? WHERE id = ?",
-    [ISBN, title, author, year, bookId],
-    (err, result) => {
-      if (err) {
-        res.json({
-          status: false,
-          message: "Error updating book",
-          data: {},
-        });
-        return;
-      }
-      res.json({
-        status: true,
-        message: "Book updated successfully",
-        data: {
-          id: bookId,
-          ISBN: ISBN,
-          title: title,
-          author: author,
-          year: year,
-        },
-      });
-    }
-  );
-});
-
-// Menampilkan form untuk menambahkan buku
-app.get("/add-book-form", (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Add Book</title>
-    </head>
-    <body>
-      <h1>Add Book</h1>
-      <form action="/add-book" method="post">
-        <label for="ISBN">ISBN:</label><br>
-        <input type="text" id="ISBN" name="ISBN"><br>
-        <label for="title">Title:</label><br>
-        <input type="text" id="title" name="title"><br>
-        <label for="author">Author:</label><br>
-        <input type="text" id="author" name="author"><br>
-        <label for="year">Year:</label><br>
-        <input type="text" id="year" name="year"><br><br>
-        <input type="submit" value="Add Book">
-      </form>
-    </body>
-    </html>
-  `);
-});
-
-// Menambahkan buku ke database
-app.post("/add-book", (req, res) => {
-  const { ISBN, title, author, year } = req.body;
-  connection.query(
-    "INSERT INTO books (ISBN, title, author, year) VALUES (?, ?, ?, ?)",
-    [ISBN, title, author, year],
-    (err, result) => {
-      if (err) {
-        res.json({
-          status: false,
-          message: "Error adding book",
-          data: {},
-        });
-        return;
-      }
-      res.json({
-        status: true,
-        message: "Book added successfully",
-        data: {
-          id: result.insertId,
-          ISBN: ISBN,
-          title: title,
-          author: author,
-          year: year,
-        },
-      });
-    },
-  );
-});
-
+// Routes
 app.get('/', (req, res) => {
-  res.send('hello yobo');
+  res.send('Hello Yobo!');
 });
 
 // get all book categories
 app.get('/categories', getAllCategories);
 
-// Menjalankan server
+// Fetch all books
+app.get('/books', (req, res) => {
+  res.json({
+    status: true,
+    message: 'Books fetched successfully',
+    data: books.map((book) => ({
+      isbn: book.isbn,
+      title: book.title,
+      author: book.author,
+      publisher: book.publisher,
+      images: book.images,
+      imagem: book.imagem, // Update from "imagens"
+      Imagel: book.Imagel, // Update from "Imagel"
+    })),
+  });
+});
+
+// Add book
+app.post('/books', (req, res) => {
+  const { isbn, title, author, publisher, images, imagem, Imagel } = req.body;
+  const newBook = {
+    isbn,
+    title,
+    author,
+    publisher,
+    images,
+    imagem, // Update from "imagens"
+    Imagel, // Update from "Imagel"
+  };
+  books.push(newBook);
+  res.json({
+    status: true,
+    message: 'Book added successfully',
+    data: newBook,
+  });
+});
+
+// Update book
+app.put('/books/:id', (req, res) => {
+  const bookId = req.params.id;
+  const { isbn, title, author, publisher, images, imagem, Imagel } = req.body;
+  const bookIndex = books.findIndex((book) => book.id === bookId);
+  if (bookIndex !== -1) {
+    books[bookIndex] = {
+      ...books[bookIndex],
+      isbn,
+      title,
+      author,
+      publisher,
+      images,
+      imagem, // Update from "imagens"
+      Imagel, // Update from "Imagel"
+    };
+    res.json({
+      status: true,
+      message: 'Book updated successfully',
+      data: books[bookIndex],
+    });
+  } else {
+    res.status(404).json({
+      status: false,
+      message: 'Book not found',
+    });
+  }
+});
+
+// Delete book
+app.delete('/books/:id', (req, res) => {
+  const bookId = req.params.id;
+  const bookIndex = books.findIndex((book) => book.id === bookId);
+  if (bookIndex !== -1) {
+    books.splice(bookIndex, 1);
+    res.json({
+      status: true,
+      message: 'Book deleted successfully',
+    });
+  } else {
+    res.status(404).json({
+      status: false,
+      message: 'Book not found',
+    });
+  }
+});
+
+// Get all user
+app.get('/users', (req, res) => {
+  res.json({
+    status: true,
+    message: 'Users fetched successfully',
+    data: users,
+  });
+});
+
+// Get specific user by ID:
+app.get('/users/:userid', (req, res) => {
+  const userId = req.params.userid;
+  // eslint-disable-next-line no-shadow
+  const user = users.find((user) => user.userid === userId);
+  if (user) {
+    res.json({
+      status: true,
+      message: 'User found',
+      data: user,
+    });
+  } else {
+    res.status(404).json({
+      status: false,
+      message: 'User not found',
+    });
+  }
+});
+
+// Add new user
+app.post('/users', (req, res) => {
+  const { userid, location, age } = req.body;
+  const newUser = {
+    userid,
+    location,
+    age,
+  };
+  users.push(newUser);
+  res.json({
+    status: true,
+    message: 'User added successfully',
+    data: newUser,
+  });
+});
+
+// Update user by ID
+app.put('/users/:userid', (req, res) => {
+  const userId = req.params.userid;
+  const { location, age } = req.body;
+  const userIndex = users.findIndex((user) => user.userid === userId);
+  if (userIndex !== -1) {
+    users[userIndex] = {
+      ...users[userIndex],
+      location: location || users[userIndex].location,
+      age: age || users[userIndex].age,
+    };
+    res.json({
+      status: true,
+      message: 'User updated successfully',
+      data: users[userIndex],
+    });
+  } else {
+    res.status(404).json({
+      status: false,
+      message: 'User not found',
+    });
+  }
+});
+
+// Delete user by ID
+app.delete('/users/:userid', (req, res) => {
+  const userId = req.params.userid;
+  const userIndex = users.findIndex((user) => user.userid === userId);
+  if (userIndex !== -1) {
+    users.splice(userIndex, 1);
+    res.json({
+      status: true,
+      message: 'User deleted successfully',
+    });
+  } else {
+    res.status(404).json({
+      status: false,
+      message: 'User not found',
+    });
+  }
+});
+
+// Add rating
+app.post('/books/:isbn/rate', (req, res) => {
+  const { isbn } = req.params;
+  const { userid, rating } = req.body;
+
+  // Check if user and book exist
+  const user = users.find((user) => user.userid === userid);
+  const book = books.find((book) => book.isbn === isbn);
+
+  if (!user || !book) {
+    res.status(404).json({
+      status: false,
+      message: 'User or book not found',
+    });
+    return;
+  }
+
+  // Add user rating to book
+  book.rating.userRatings.push({
+    userid,
+    rating,
+  });
+
+  // Update average and count
+  book.rating.average = calculateAverageRating(book.rating.userRatings);
+  book.rating.count = book.rating.userRatings.length;
+
+  res.json({
+    status: true,
+    message: 'Rating added successfully',
+  });
+});
+// Start server
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+// eslint-disable-next-line no-console
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
